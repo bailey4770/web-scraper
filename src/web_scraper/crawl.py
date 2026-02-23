@@ -26,6 +26,8 @@ def normalize_url(url: str) -> str:
 
     sanitized = parts.hostname or ""
     sanitized += parts.path.rstrip("/")
-    sanitized = sanitized.lstrip("www.")
+
+    while sanitized.startswith("www."):
+        sanitized = sanitized[4:]
 
     return sanitized
