@@ -1,9 +1,40 @@
 import logging
-from urllib.parse import urlsplit, urljoin
+from typing import TypedDict
+from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup, Tag
 
 logger = logging.getLogger(__name__)
+
+
+class PageData(TypedDict):
+    url: str
+    h1: str
+    first_paragraph: str
+    outgoing_links: list[str]
+    image_urls: list[str]
+
+
+def extract_page_data(html: str, page_url: str) -> PageData:
+    """Extract structured data from an HTML page.
+
+    Args:
+        html: Raw HTML string to parse.
+        page_url: URL of the page, included in the returned data and used to resolve relative URLs.
+
+    Returns:
+        PageData dict containing url, h1, first_paragraph, outgoing_links, and image_urls.
+
+    Raises:
+        ValueError: If html is empty.
+    """
+    return {
+        "url": page_url,
+        "h1": get_h1_from_html(html),
+        "first_paragraph": get_first_paragraph_from_html(html),
+        "outgoing_links": get_urls_from_html(html, page_url),
+        "image_urls": get_images_from_html(html, page_url),
+    }
 
 
 def normalize_url(url: str) -> str:

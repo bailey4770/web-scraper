@@ -6,6 +6,8 @@ from web_scraper.crawl import (
     get_first_paragraph_from_html,
     get_urls_from_html,
     get_images_from_html,
+    extract_page_data,
+    PageData,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -333,6 +335,84 @@ class TestGetImagesFromHTML(unittest.TestCase):
         actual = get_images_from_html(input_body, input_url)
         expected = ["https://www.wikipedia.com/page.png"]
         self.assertEqual(actual, expected)
+
+
+class TestExtractPageData(unittest.TestCase):
+    def test_all_included(self):
+        input_url = "https://blog.boot.dev"
+        input_body = """<html><body>
+            <h1>Test Title</h1>
+            <p>This is the first paragraph.</p>
+            <a href="/link1">Link 1</a>
+            <img src="/image1.jpg" alt="Image 1">
+        </body></html>"""
+        actual = extract_page_data(input_body, input_url)
+        expected = {
+            "url": "https://blog.boot.dev",
+            "h1": "Test Title",
+            "first_paragraph": "This is the first paragraph.",
+            "outgoing_links": ["https://blog.boot.dev/link1"],
+            "image_urls": ["https://blog.boot.dev/image1.jpg"],
+        }
+        self.assertEqual(actual, expected)
+
+    def test_no_links_or_images(self):
+        input_url = "https://blog.boot.dev"
+        input_body = """<html><body>
+            <h1>Test Title</h1>
+            <p>This is the first paragraph.</p>
+        </body></html>"""
+        actual = extract_page_data(input_body, input_url)
+        expected: PageData = {
+            "url": "https://blog.boot.dev",
+            "h1": "Test Title",
+            "first_paragraph": "This is the first paragraph.",
+            "outgoing_links": [],
+            "image_urls": [],
+        }
+        self.assertEqual(actual, expected)
+
+    def test_multiple_links_and_images(self):
+        input_url = "https://blog.boot.dev"
+        input_body = """<html><body>
+            <h1>Title</h1>
+            <a href="/a">A</a>
+            <a href="/b">B</a>
+            <img src="/x.png">
+            <img src="/y.png">
+        </body></html>"""
+        actual = extract_page_data(input_body, input_url)
+        expected = {
+            "url": "https://blog.boot.dev",
+            "h1": "Title",
+            "first_paragraph": "",
+            "outgoing_links": ["https://blog.boot.dev/a", "https://blog.boot.dev/b"],
+            "image_urls": [
+                "https://blog.boot.dev/x.png",
+                "https://blog.boot.dev/y.png",
+            ],
+        }
+        self.assertEqual(actual, expected)
+
+    def test_no_h1(self):
+        input_url = "https://blog.boot.dev"
+        input_body = """<html><body>
+            <p>This is the first paragraph.</p>
+            <a href="/link1">Link 1</a>
+            <img src="/image1.jpg" alt="Image 1">
+        </body></html>"""
+        actual = extract_page_data(input_body, input_url)
+        expected = {
+            "url": "https://blog.boot.dev",
+            "h1": "",
+            "first_paragraph": "This is the first paragraph.",
+            "outgoing_links": ["https://blog.boot.dev/link1"],
+            "image_urls": ["https://blog.boot.dev/image1.jpg"],
+        }
+        self.assertEqual(actual, expected)
+
+    def test_extract_page_data_empty_html(self):
+        self.assertRaises(ValueError, extract_page_data, "", "https://blog.boot.dev")
 
 
 if __name__ == "__main__":
