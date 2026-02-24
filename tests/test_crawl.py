@@ -1,6 +1,6 @@
 import unittest
 import logging
-from web_scraper.crawl import (
+from web_scraper.html_parse import (
     normalize_url,
     get_h1_from_html,
     get_first_paragraph_from_html,
@@ -348,7 +348,6 @@ class TestExtractPageData(unittest.TestCase):
         </body></html>"""
         actual = extract_page_data(input_body, input_url)
         expected = {
-            "url": "https://blog.boot.dev",
             "h1": "Test Title",
             "first_paragraph": "This is the first paragraph.",
             "outgoing_links": ["https://blog.boot.dev/link1"],
@@ -364,7 +363,6 @@ class TestExtractPageData(unittest.TestCase):
         </body></html>"""
         actual = extract_page_data(input_body, input_url)
         expected: PageData = {
-            "url": "https://blog.boot.dev",
             "h1": "Test Title",
             "first_paragraph": "This is the first paragraph.",
             "outgoing_links": [],
@@ -383,7 +381,6 @@ class TestExtractPageData(unittest.TestCase):
         </body></html>"""
         actual = extract_page_data(input_body, input_url)
         expected = {
-            "url": "https://blog.boot.dev",
             "h1": "Title",
             "first_paragraph": "",
             "outgoing_links": ["https://blog.boot.dev/a", "https://blog.boot.dev/b"],
@@ -403,7 +400,6 @@ class TestExtractPageData(unittest.TestCase):
         </body></html>"""
         actual = extract_page_data(input_body, input_url)
         expected = {
-            "url": "https://blog.boot.dev",
             "h1": "",
             "first_paragraph": "This is the first paragraph.",
             "outgoing_links": ["https://blog.boot.dev/link1"],

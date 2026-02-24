@@ -1,12 +1,11 @@
 import logging
-import sys
 
-import requests
 import typer
 
-from .fetch import get_html
+from .crawl import crawl_page
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 app = typer.Typer()
 
@@ -14,20 +13,16 @@ app = typer.Typer()
 @app.command()
 def crawl(base_url: str):
     print(f"starting crawl of: {base_url}")
+    pages = crawl_page(base_url, base_url, {})
+    print("crawl complete")
 
-    try:
-        html = get_html(base_url)
-    except requests.exceptions.Timeout:
-        logger.warning("timeout fetching %s", base_url)
-        sys.exit(1)
-    except requests.exceptions.ConnectionError:
-        logger.warning("connection error fetching %s, skipping", base_url)
-        sys.exit(1)
-    except requests.exceptions.HTTPError as e:
-        logger.warning("http error %s fetching %s, skipping", e, base_url)
-        sys.exit(1)
+    i = 1
+    for url, data in pages.items():
+        if data is None:
+            continue
 
-    print(html)
+        print(f"{i}: {url}")
+        i += 1
 
 
 def main():
