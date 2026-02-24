@@ -1,5 +1,5 @@
 import logging
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urljoin
 
 from bs4 import BeautifulSoup, Tag
 
@@ -78,3 +78,83 @@ def get_first_paragraph_from_html(html: str) -> str:
 
     p = main.find("p") if isinstance(main, Tag) else soup.find("p")
     return p.get_text().strip() if p else ""
+
+
+def get_urls_from_html(html: str, base_url: str) -> list[str]:
+    """Extract and resolve all hyperlinks from an HTML string.
+
+    Relative URLs are resolved against base_url. Absolute URLs are returned as-is.
+
+    Args:
+        html: Raw HTML string to parse.
+        base_url: Base URL used to resolve relative links.
+
+    Returns:
+        List of unnormalized, resolved URL strings. Empty list if no links found.
+
+    Raises:
+        ValueError: If html or base_url is empty.
+    """
+    if not html or not base_url:
+        raise ValueError("html string or base_url cannot be empty")
+
+    soup = BeautifulSoup(html, "html.parser")
+    links: list[str] = []
+
+    for a in soup.find_all("a"):
+        if not isinstance(a, Tag):
+            continue
+
+        link = a.get("href")
+        if link is None:
+            continue
+        link = str(link)
+
+        # handle common malformed url edge case
+        if link.startswith("www."):
+            link = "https://" + link
+
+        # urljoin will not join absolute urls
+        link = urljoin(base_url, link)
+        links.append(link)
+
+    return links
+
+
+def get_images_from_html(html: str, base_url: str) -> list[str]:
+    """Extract and resolve all image sources from an HTML string.
+
+    Relative src paths are resolved against base_url. Absolute URLs are returned as-is.
+
+    Args:
+        html: Raw HTML string to parse.
+        base_url: Base URL used to resolve relative image paths.
+
+    Returns:
+        List of unnormalized, resolved image URL strings. Empty list if no images found.
+
+    Raises:
+        ValueError: If html or base_url is empty.
+    """
+    if not html or not base_url:
+        raise ValueError("html string or base_url cannot be empty")
+
+    soup = BeautifulSoup(html, "html.parser")
+    images: list[str] = []
+
+    for img in soup.find_all("img"):
+        if not isinstance(img, Tag):
+            continue
+
+        src = img.get("src")
+        if src is None:
+            continue
+        src = str(src)
+
+        if src.startswith("www."):
+            src = "https://" + src
+
+        src = urljoin(base_url, src)
+        images.append(src)
+
+    return images
