@@ -6,7 +6,7 @@ import typer
 from .crawl import crawl_site_async
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 DEFAULT_MAX_CONCURRENCY = 4
 app = typer.Typer()
@@ -21,12 +21,9 @@ async def _crawl(base_url: str, max_concurrency: int):
     print(f"starting crawl of: {base_url}")
     pages = await crawl_site_async(base_url, max_concurrency)
     print("crawl complete")
-    i = 1
-    for url, data in pages.items():
-        if data is None:
-            continue
+
+    for i, url in enumerate(pages, 1):
         print(f"{i}: {url}")
-        i += 1
 
 
 def main():

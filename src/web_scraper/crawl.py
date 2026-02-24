@@ -18,7 +18,6 @@ class AsyncCrawler:
         self.pages: Pages = {}
         self.lock: asyncio.Lock = asyncio.Lock()
         self.max_concurrency: int = max_concurrency
-        self.semaphore: asyncio.Semaphore = asyncio.Semaphore(max_concurrency)
         self.session: aiohttp.ClientSession | None = None
 
     async def __aenter__(self) -> Self:
@@ -50,21 +49,7 @@ class AsyncCrawler:
             assert "text/html" in r.headers.get("content-type", "")
             return await r.text()
 
-    async def _crawl_page(self, current_url: str) -> None:
-        """Recursively crawl a page and all outgoing links within the same domain.
-
-        Pages outside base_url are ignored. Already-visited pages are skipped.
-        Failed fetches are recorded as None in the pages dict.
-
-        Args:
-            base_url: Root URL of the site being crawled. Only URLs starting with
-                this are followed.
-            current_url: URL of the page to crawl.
-            pages: Accumulator dict mapping normalized URLs to their extracted data.
-
-        Returns:
-            Updated pages dict with current_url and all discovered pages added.
-        """
+    async def _crawl_page(self, current_url: str, queue: asyncio.Queue[str]) -> None:
         if not current_url.startswith(self.base_url):
             return
 
@@ -72,40 +57,60 @@ class AsyncCrawler:
         if await self._add_page_visit(normalized):
             return
 
-        async with self.semaphore:
-            logger.info("Scraping data from %s", current_url)
-            try:
-                html = await self._get_html(current_url)
-            except Exception as e:
-                logger.warning("failed to fetch %s: %s", current_url, e)
-                async with self.lock:
-                    self.pages[normalized] = None
-                return
-
-            data = extract_page_data(html, current_url)
-
+        logger.info("Scraping data from %s", current_url)
+        try:
+            html = await self._get_html(current_url)
+        except Exception as e:
+            logger.warning("failed to fetch %s: %s", current_url, e)
             async with self.lock:
-                self.pages[normalized] = data
+                self.pages[normalized] = None
+            return
 
-            logger.info("Scraped data from %s", current_url)
-            logger.debug("scraped data: %s", data)
+        data = extract_page_data(html, current_url)
 
-        tasks = [
-            asyncio.create_task(self._crawl_page(link))
-            for link in data["outgoing_links"]
-        ]
-        _ = await asyncio.gather(*tasks)
+        async with self.lock:
+            self.pages[normalized] = data
 
-        return
+        logger.info("Scraped data from %s", current_url)
+        logger.debug("scraped data: %s", data)
+
+        for link in data["outgoing_links"]:
+            await queue.put(link)
 
     async def crawl(self) -> Pages:
-        await self._crawl_page(self.base_url)
+        queue: asyncio.Queue[str] = asyncio.Queue()
+        queue.put_nowait(self.base_url)
+
+        async def worker():
+            while True:
+                url = await queue.get()
+                try:
+                    await self._crawl_page(url, queue)
+                except Exception as e:
+                    logger.warning("unhandled error crawling %s: %s", url, e)
+                finally:
+                    queue.task_done()
+
+        workers = [asyncio.create_task(worker()) for _ in range(self.max_concurrency)]
+        await queue.join()
+        for w in workers:
+            _ = w.cancel()
         return self.pages
 
 
-async def crawl_site_async(base_url: str, max_concurrency: int):
+async def crawl_site_async(base_url: str, max_concurrency: int) -> dict[str, PageData]:
+    """Crawl a website asynchronously and return extracted page data.
+
+    Args:
+        base_url: URL to start crawling from. Only pages within this domain are crawled.
+        max_concurrency: Maximum number of concurrent HTTP requests. Defaults to 4.
+
+    Returns:
+        Dict mapping normalized URLs to their extracted PageData.
+    """
     async with AsyncCrawler(
         base_url,
         max_concurrency,
     ) as a:
-        return await a.crawl()
+        pages = await a.crawl()
+        return {k: v for k, v in pages.items() if v is not None}
