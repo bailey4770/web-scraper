@@ -13,9 +13,10 @@ Pages: TypeAlias = dict[str, PageData | None]
 
 
 class AsyncCrawler:
-    def __init__(self, base_url: str, max_concurrency: int) -> None:
+    def __init__(self, base_url: str, max_concurrency: int, max_pages: int) -> None:
         self.base_url: str = base_url
         self.pages: Pages = {}
+        self.max_pages: int = max_pages
         self.lock: asyncio.Lock = asyncio.Lock()
         self.max_concurrency: int = max_concurrency
         self.session: aiohttp.ClientSession | None = None
@@ -50,6 +51,10 @@ class AsyncCrawler:
             return await r.text()
 
     async def _crawl_page(self, current_url: str, queue: asyncio.Queue[str]) -> None:
+        async with self.lock:
+            if len(self.pages) >= self.max_pages:
+                return _clear_queue(queue)
+
         if not current_url.startswith(self.base_url):
             return
 
@@ -93,12 +98,24 @@ class AsyncCrawler:
 
         workers = [asyncio.create_task(worker()) for _ in range(self.max_concurrency)]
         await queue.join()
+
+        if len(self.pages) >= self.max_pages:
+            print("Reached maximum number of pages to crawl.")
+
         for w in workers:
             _ = w.cancel()
         return self.pages
 
 
-async def crawl_site_async(base_url: str, max_concurrency: int) -> dict[str, PageData]:
+def _clear_queue(queue: asyncio.Queue[str]):
+    while not queue.empty():
+        _ = queue.get_nowait()
+        queue.task_done()
+
+
+async def crawl_site_async(
+    base_url: str, max_concurrency: int, max_pages: int
+) -> dict[str, PageData]:
     """Crawl a website asynchronously and return extracted page data.
 
     Args:
@@ -108,9 +125,6 @@ async def crawl_site_async(base_url: str, max_concurrency: int) -> dict[str, Pag
     Returns:
         Dict mapping normalized URLs to their extracted PageData.
     """
-    async with AsyncCrawler(
-        base_url,
-        max_concurrency,
-    ) as a:
+    async with AsyncCrawler(base_url, max_concurrency, max_pages) as a:
         pages = await a.crawl()
         return {k: v for k, v in pages.items() if v is not None}
