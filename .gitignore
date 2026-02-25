@@ -3,6 +3,9 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# don't track output directory
+out/
+
 # C extensions
 *.so
 
