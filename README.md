@@ -1,2 +1,3 @@
 # web-scraper
-A web-scraper written in Pytohn, focussing on internal links on websites to perform SEO analysis.
+
+A web-scraper written in Python, focusing on internal links on websites to perform SEO analysis.
